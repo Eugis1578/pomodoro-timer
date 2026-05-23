@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="floor_color">#FFD2B48C</color>
+    <color name="wall_color">#FF8B4513</color>
+    <color name="box_color">#FFFFA500</color>
+    <color name="box_on_target">#FF32CD32</color>
+    <color name="target_color">#FFFF0000</color>
+    <color name="player_color">#FF4169E1</color>
+    <color name="background_color">#FF2C2C2C</color>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Sokoban" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#FF4169E1</item>
+        <item name="colorPrimaryVariant">#FF3158C9</item>
+        <item name="colorOnPrimary">#FFFFFFFF</item>
+        <item name="colorSecondary">#FFFFA500</item>
+        <item name="colorSecondaryVariant">#FFCC8400</item>
+        <item name="colorOnSecondary">#FF000000</item>
+        <item name="android:statusBarColor">#FF1E1E1E</item>
+    </style>
+</resources>
