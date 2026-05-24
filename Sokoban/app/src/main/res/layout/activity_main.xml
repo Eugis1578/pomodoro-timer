@@ -43,6 +43,17 @@
             android:textSize="18sp"
             android:textColor="@color/button_primary"
             android:backgroundTint="@color/white"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_marginBottom="20dp"/>
+
+        <Button
+            android:id="@+id/btnLevelEditor"
+            android:layout_width="220dp"
+            android:layout_height="56dp"
+            android:text="@string/level_editor"
+            android:textSize="18sp"
+            android:textColor="@color/button_primary"
+            android:backgroundTint="@color/white"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
 
     </LinearLayout>
@@ -180,6 +191,21 @@
             android:textSize="40sp"
             android:textColor="@color/button_primary"
             android:textStyle="bold"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tvStars"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="36sp"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/tvWinStats"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textColor="@color/text_secondary"
             android:layout_marginBottom="24dp"/>
 
         <Button
@@ -190,6 +216,122 @@
             android:textSize="18sp"
             android:textColor="@color/button_text"
             android:backgroundTint="@color/button_primary"/>
+
+    </LinearLayout>
+
+    <!-- Level editor screen -->
+    <LinearLayout
+        android:id="@+id/editorLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/background_color"
+        android:visibility="gone">
+
+        <!-- Top bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="4dp">
+
+            <ImageButton
+                android:id="@+id/btnEditorBack"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@android:drawable/ic_menu_revert"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="返回"
+                app:tint="@color/title_color"/>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/level_editor"
+                android:textColor="@color/title_color"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:gravity="center"/>
+
+            <Button
+                android:id="@+id/btnEditorClear"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:text="@string/clear"
+                android:textSize="14sp"
+                android:textColor="@color/text_secondary"
+                android:backgroundTint="@color/background_color"/>
+
+        </LinearLayout>
+
+        <!-- Editor grid -->
+        <com.sokoban.game.LevelEditorView
+            android:id="@+id/editorView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+
+        <!-- Cell type palette -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:paddingVertical="4dp">
+
+            <LinearLayout
+                android:id="@+id/paletteLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="8dp"/>
+
+        </HorizontalScrollView>
+
+        <!-- Bottom action buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp">
+
+            <Button
+                android:id="@+id/btnEditorTest"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="@string/test"
+                android:textSize="14sp"
+                android:textColor="@color/button_text"
+                android:backgroundTint="@color/button_primary"
+                android:layout_marginHorizontal="6dp"/>
+
+            <Button
+                android:id="@+id/btnEditorSave"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="@string/save"
+                android:textSize="14sp"
+                android:textColor="@color/button_text"
+                android:backgroundTint="@color/button_primary"
+                android:layout_marginHorizontal="6dp"/>
+
+            <Button
+                android:id="@+id/btnEditorExport"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="@string/export"
+                android:textSize="14sp"
+                android:textColor="@color/button_text"
+                android:backgroundTint="@color/button_primary"
+                android:layout_marginHorizontal="6dp"/>
+
+        </LinearLayout>
 
     </LinearLayout>
 

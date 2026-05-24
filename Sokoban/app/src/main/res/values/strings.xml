@@ -9,4 +9,15 @@
     <string name="next_level">下一关</string>
     <string name="undo">撤销</string>
     <string name="level_d">第 %d 关</string>
+    <string name="level_editor">关卡编辑器</string>
+    <string name="clear">清空</string>
+    <string name="test">测试</string>
+    <string name="save">保存</string>
+    <string name="export">导出</string>
+    <string name="custom_level">自定义 %d</string>
+    <string name="enter_level_name">请输入关卡名称</string>
+    <string name="level_saved">关卡已保存</string>
+    <string name="level_exported">关卡已复制到剪贴板</string>
+    <string name="need_player">必须有且仅有一个玩家</string>
+    <string name="need_equal">箱子数必须等于目标点数</string>
 </resources>
