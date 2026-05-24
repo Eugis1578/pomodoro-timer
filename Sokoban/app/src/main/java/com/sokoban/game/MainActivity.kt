@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var mainMenuLayout: LinearLayout
     private lateinit var levelSelectLayout: LinearLayout
     private lateinit var gameLayout: LinearLayout
     private lateinit var winOverlay: LinearLayout
@@ -26,7 +27,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 初始化视图
+        mainMenuLayout = findViewById(R.id.mainMenuLayout)
         levelSelectLayout = findViewById(R.id.levelSelectLayout)
         gameLayout = findViewById(R.id.gameLayout)
         winOverlay = findViewById(R.id.winOverlay)
@@ -35,35 +36,44 @@ class MainActivity : AppCompatActivity() {
         tvMoves = findViewById(R.id.tvMoves)
         levelGrid = findViewById(R.id.levelGrid)
 
-        // 设置返回按钮
-        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+        // 开始游戏 → 直接进入第1关
+        findViewById<Button>(R.id.btnStartGame).setOnClickListener {
+            currentLevel = 0
+            startLevel(0)
+        }
+
+        // 选择关卡 → 显示关卡列表
+        findViewById<Button>(R.id.btnLevelSelect).setOnClickListener {
             showLevelSelect()
         }
 
-        // 设置重新开始按钮
+        // 关卡列表返回主菜单
+        findViewById<Button>(R.id.btnBackToMenu).setOnClickListener {
+            showMainMenu()
+        }
+
+        // 游戏内返回按钮
+        findViewById<ImageButton>(R.id.btnBack).setOnClickListener {
+            showMainMenu()
+        }
+
+        // 重新开始
         findViewById<Button>(R.id.btnRestart).setOnClickListener {
             gameView.restart()
             updateMovesDisplay()
         }
 
-        // 设置撤销按钮
-        findViewById<Button>(R.id.btnUndo).setOnClickListener {
-            gameView.undo()
-            updateMovesDisplay()
-        }
-
-        // 设置下一关按钮
+        // 下一关
         findViewById<Button>(R.id.btnNextLevel).setOnClickListener {
             winOverlay.visibility = View.GONE
             currentLevel++
             if (currentLevel < LevelData.levels.size) {
                 startLevel(currentLevel)
             } else {
-                showLevelSelect()
+                showMainMenu()
             }
         }
 
-        // 设置游戏回调
         gameView.setOnMoveCallback {
             updateMovesDisplay()
         }
@@ -72,11 +82,8 @@ class MainActivity : AppCompatActivity() {
             showWinDialog()
         }
 
-        // 创建关卡选择按钮
         createLevelButtons()
-
-        // 显示关卡选择界面
-        showLevelSelect()
+        showMainMenu()
     }
 
     private fun createLevelButtons() {
@@ -85,14 +92,15 @@ class MainActivity : AppCompatActivity() {
         for (i in LevelData.levels.indices) {
             val button = Button(this).apply {
                 text = "第 ${i + 1} 关"
-                textSize = 16f
-                setBackgroundColor(ContextCompat.getColor(context, R.color.player_color))
+                textSize = 14f
+                backgroundTintList = ContextCompat.getColorStateList(context, R.color.button_primary)
                 setTextColor(ContextCompat.getColor(context, R.color.white))
 
                 val params = GridLayout.LayoutParams().apply {
-                    width = GridLayout.LayoutParams.WRAP_CONTENT
+                    width = 0
                     height = GridLayout.LayoutParams.WRAP_CONTENT
-                    setMargins(8, 8, 8, 8)
+                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                    setMargins(6, 6, 6, 6)
                 }
                 layoutParams = params
 
@@ -106,20 +114,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startLevel(levelIndex: Int) {
+        mainMenuLayout.visibility = View.GONE
         levelSelectLayout.visibility = View.GONE
         gameLayout.visibility = View.VISIBLE
         winOverlay.visibility = View.GONE
 
         tvLevel.text = getString(R.string.level_d, levelIndex + 1)
 
-        // 延迟加载关卡，等待视图完成布局
         gameView.post {
             gameView.loadLevel(levelIndex)
             updateMovesDisplay()
         }
     }
 
+    private fun showMainMenu() {
+        mainMenuLayout.visibility = View.VISIBLE
+        levelSelectLayout.visibility = View.GONE
+        gameLayout.visibility = View.GONE
+        winOverlay.visibility = View.GONE
+    }
+
     private fun showLevelSelect() {
+        mainMenuLayout.visibility = View.GONE
         levelSelectLayout.visibility = View.VISIBLE
         gameLayout.visibility = View.GONE
         winOverlay.visibility = View.GONE

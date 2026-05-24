@@ -1,5 +1,6 @@
 package com.sokoban.game
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
@@ -10,6 +11,7 @@ import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import kotlin.math.min
 
 class GameView @JvmOverloads constructor(
@@ -23,8 +25,28 @@ class GameView @JvmOverloads constructor(
     private var offsetX = 0f
     private var offsetY = 0f
 
+    private var currentLevelIndex = 0
+
     private var onMoveCallback: (() -> Unit)? = null
     private var onCompleteCallback: (() -> Unit)? = null
+
+    // 滑动动画
+    private var isAnimating = false
+    private var animProgress = 0f
+    private var animPlayerFromRow = 0
+    private var animPlayerFromCol = 0
+    private var animPlayerToRow = 0
+    private var animPlayerToCol = 0
+    private var animBoxFromRow = -1
+    private var animBoxFromCol = -1
+    private var animBoxToRow = -1
+    private var animBoxToCol = -1
+    private var animHasBox = false
+    private var animPlayerOnTarget = false
+    private var animBoxOnTarget = false
+    private var animPlayerDestOnTarget = false
+    private var animBoxDestOnTarget = false
+    private var animValueAnimator: ValueAnimator? = null
 
     // 画笔
     private val floorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -32,11 +54,11 @@ class GameView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val wallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#8B4513")
+        color = Color.parseColor("#9E9E9E")
         style = Paint.Style.FILL
     }
     private val wallBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#6B3410")
+        color = Color.parseColor("#757575")
         style = Paint.Style.STROKE
         strokeWidth = 2f
     }
@@ -71,7 +93,7 @@ class GameView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
     private val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#2C2C2C")
+        color = Color.parseColor("#E8E0D8")
         style = Paint.Style.FILL
     }
 
@@ -116,6 +138,7 @@ class GameView @JvmOverloads constructor(
 
     fun loadLevel(levelIndex: Int) {
         if (levelIndex in LevelData.levels.indices) {
+            currentLevelIndex = levelIndex
             gameLogic.loadLevel(LevelData.levels[levelIndex])
             calculateCellSize()
             invalidate()
@@ -125,9 +148,57 @@ class GameView @JvmOverloads constructor(
     fun getMoves(): Int = gameLogic.moves
 
     fun move(direction: Direction) {
+        if (isAnimating) return
+
+        // 记录移动前位置
+        val oldPlayerRow = gameLogic.playerRow
+        val oldPlayerCol = gameLogic.playerCol
+
         if (gameLogic.move(direction)) {
             onMoveCallback?.invoke()
-            invalidate()
+
+            // 新位置
+            val newPlayerRow = gameLogic.playerRow
+            val newPlayerCol = gameLogic.playerCol
+
+            val (dr, dc) = when (direction) {
+                Direction.UP -> Pair(-1, 0)
+                Direction.DOWN -> Pair(1, 0)
+                Direction.LEFT -> Pair(0, -1)
+                Direction.RIGHT -> Pair(0, 1)
+            }
+
+            // 判断是否推了箱子（新位置 = 旧箱子位置，再往前一格 = 箱子新位置）
+            val boxOldRow = newPlayerRow
+            val boxOldCol = newPlayerCol
+            val boxNewRow = newPlayerRow + dr
+            val boxNewCol = newPlayerCol + dc
+
+            val pushedBox = (boxNewRow != oldPlayerRow || boxNewCol != oldPlayerCol) &&
+                boxNewRow in 0 until gameLogic.rows &&
+                boxNewCol in 0 until gameLogic.cols &&
+                (gameLogic.getCell(boxNewRow, boxNewCol) == CellType.BOX.ordinal ||
+                 gameLogic.getCell(boxNewRow, boxNewCol) == CellType.BOX_ON_TARGET.ordinal)
+
+            // 设置动画参数
+            animPlayerFromRow = oldPlayerRow
+            animPlayerFromCol = oldPlayerCol
+            animPlayerToRow = newPlayerRow
+            animPlayerToCol = newPlayerCol
+            animPlayerOnTarget = gameLogic.isTarget(oldPlayerRow, oldPlayerCol)
+            animPlayerDestOnTarget = gameLogic.isTarget(newPlayerRow, newPlayerCol)
+
+            animHasBox = pushedBox
+            if (pushedBox) {
+                animBoxFromRow = boxOldRow
+                animBoxFromCol = boxOldCol
+                animBoxToRow = boxNewRow
+                animBoxToCol = boxNewCol
+                animBoxOnTarget = gameLogic.isTarget(boxOldRow, boxOldCol)
+                animBoxDestOnTarget = gameLogic.isTarget(boxNewRow, boxNewCol)
+            }
+
+            startSlideAnimation()
 
             if (gameLogic.isCompleted) {
                 onCompleteCallback?.invoke()
@@ -135,10 +206,22 @@ class GameView @JvmOverloads constructor(
         }
     }
 
-    fun undo() {
-        if (gameLogic.undo()) {
-            onMoveCallback?.invoke()
-            invalidate()
+    private fun startSlideAnimation() {
+        isAnimating = true
+        animProgress = 0f
+
+        animValueAnimator?.cancel()
+        animValueAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 80
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animation ->
+                animProgress = animation.animatedValue as Float
+                invalidate()
+                if (animProgress >= 1f) {
+                    isAnimating = false
+                }
+            }
+            start()
         }
     }
 
@@ -151,18 +234,7 @@ class GameView @JvmOverloads constructor(
         }
     }
 
-    private fun findCurrentLevelIndex(): Int {
-        // 简单实现：通过比较玩家位置来确定当前关卡
-        for (i in LevelData.levels.indices) {
-            val level = LevelData.levels[i]
-            if (level.playerStartRow == gameLogic.playerRow &&
-                level.playerStartCol == gameLogic.playerCol &&
-                level.map.size == gameLogic.rows) {
-                return i
-            }
-        }
-        return 0
-    }
+    private fun findCurrentLevelIndex(): Int = currentLevelIndex
 
     private fun calculateCellSize() {
         if (gameLogic.rows == 0 || gameLogic.cols == 0) return
@@ -173,7 +245,7 @@ class GameView @JvmOverloads constructor(
         cellSize = min(
             availableWidth / gameLogic.cols,
             availableHeight / gameLogic.rows
-        )
+        ) * 0.85f
 
         // 居中偏移
         offsetX = (availableWidth - cellSize * gameLogic.cols) / 2
@@ -190,16 +262,24 @@ class GameView @JvmOverloads constructor(
 
         if (gameLogic.rows == 0) return
 
-        // 绘制背景
-        canvas.drawColor(Color.parseColor("#2C2C2C"))
+        canvas.drawColor(Color.parseColor("#F5F0EB"))
 
-        // 绘制网格
         for (row in 0 until gameLogic.rows) {
             for (col in 0 until gameLogic.cols) {
                 val x = offsetX + col * cellSize
                 val y = offsetY + row * cellSize
                 val rect = RectF(x, y, x + cellSize, y + cellSize)
-                val cellType = gameLogic.getCell(row, col)
+                var cellType = gameLogic.getCell(row, col)
+
+                // 动画中：把玩家/箱子的当前位置临时改为地板或目标
+                if (isAnimating) {
+                    if (row == animPlayerToRow && col == animPlayerToCol) {
+                        cellType = if (animPlayerDestOnTarget) CellType.TARGET.ordinal else CellType.FLOOR.ordinal
+                    }
+                    if (animHasBox && row == animBoxToRow && col == animBoxToCol) {
+                        cellType = if (animBoxDestOnTarget) CellType.TARGET.ordinal else CellType.FLOOR.ordinal
+                    }
+                }
 
                 when (cellType) {
                     CellType.EMPTY.ordinal -> {
@@ -209,7 +289,7 @@ class GameView @JvmOverloads constructor(
                         drawFloor(canvas, rect)
                     }
                     CellType.WALL.ordinal -> {
-                        drawWall(canvas, rect, row, col)
+                        drawWall(canvas, rect, row)
                     }
                     CellType.TARGET.ordinal -> {
                         drawFloor(canvas, rect)
@@ -235,6 +315,25 @@ class GameView @JvmOverloads constructor(
                 }
             }
         }
+
+        // 动画中：在插值位置绘制玩家和箱子
+        if (isAnimating) {
+            val t = animProgress
+
+            // 玩家滑动
+            val px = offsetX + (animPlayerFromCol + (animPlayerToCol - animPlayerFromCol) * t) * cellSize
+            val py = offsetY + (animPlayerFromRow + (animPlayerToRow - animPlayerFromRow) * t) * cellSize
+            val playerRect = RectF(px, py, px + cellSize, py + cellSize)
+            drawPlayer(canvas, playerRect)
+
+            // 箱子滑动
+            if (animHasBox) {
+                val bx = offsetX + (animBoxFromCol + (animBoxToCol - animBoxFromCol) * t) * cellSize
+                val by = offsetY + (animBoxFromRow + (animBoxToRow - animBoxFromRow) * t) * cellSize
+                val boxRect = RectF(bx, by, bx + cellSize, by + cellSize)
+                drawBox(canvas, boxRect, animBoxDestOnTarget)
+            }
+        }
     }
 
     private fun drawFloor(canvas: Canvas, rect: RectF) {
@@ -248,7 +347,7 @@ class GameView @JvmOverloads constructor(
         )
     }
 
-    private fun drawWall(canvas: Canvas, rect: RectF, row: Int, col: Int) {
+    private fun drawWall(canvas: Canvas, rect: RectF, row: Int) {
         // 墙壁主体
         canvas.drawRect(rect, wallPaint)
 
@@ -257,7 +356,7 @@ class GameView @JvmOverloads constructor(
 
         // 墙壁纹理（简单的砖块效果）
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#7B4420")
+            color = Color.parseColor("#8A8A8A")
             strokeWidth = 1f
             style = Paint.Style.STROKE
         }
@@ -378,38 +477,41 @@ class GameView @JvmOverloads constructor(
     }
 
     private fun drawPlayer(canvas: Canvas, rect: RectF) {
-        val centerX = rect.centerX()
-        val centerY = rect.centerY()
-        val radius = cellSize * 0.35f
+        val padding = cellSize * 0.12f
+        val playerRect = RectF(
+            rect.left + padding,
+            rect.top + padding,
+            rect.right - padding,
+            rect.bottom - padding
+        )
 
-        // 阴影
-        canvas.drawCircle(centerX + 2, centerY + 2, radius, shadowPaint)
-
-        // 身体
-        canvas.drawCircle(centerX, centerY, radius, playerPaint)
-
-        // 边框
-        canvas.drawCircle(centerX, centerY, radius, playerBorderPaint)
-
-        // 眼睛
-        val eyePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 白色方块身体
+        val whitePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             style = Paint.Style.FILL
         }
-        val eyeRadius = radius * 0.15f
-        val eyeOffset = radius * 0.3f
+        canvas.drawRoundRect(playerRect, 6f, 6f, whitePaint)
 
-        canvas.drawCircle(centerX - eyeOffset, centerY - eyeOffset * 0.5f, eyeRadius, eyePaint)
-        canvas.drawCircle(centerX + eyeOffset, centerY - eyeOffset * 0.5f, eyeRadius, eyePaint)
+        // 边框
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#CCCCCC")
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+        }
+        canvas.drawRoundRect(playerRect, 6f, 6f, borderPaint)
 
-        // 瞳孔
-        val pupilPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 两个小黑方块眼睛
+        val eyePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.BLACK
             style = Paint.Style.FILL
         }
-        val pupilRadius = eyeRadius * 0.6f
-        canvas.drawCircle(centerX - eyeOffset, centerY - eyeOffset * 0.5f, pupilRadius, pupilPaint)
-        canvas.drawCircle(centerX + eyeOffset, centerY - eyeOffset * 0.5f, pupilRadius, pupilPaint)
+        val eyeSize = cellSize * 0.08f
+        val eyeY = rect.centerY() - cellSize * 0.08f
+        val leftEyeX = rect.centerX() - cellSize * 0.15f
+        val rightEyeX = rect.centerX() + cellSize * 0.15f
+
+        canvas.drawRect(leftEyeX - eyeSize, eyeY - eyeSize, leftEyeX + eyeSize, eyeY + eyeSize, eyePaint)
+        canvas.drawRect(rightEyeX - eyeSize, eyeY - eyeSize, rightEyeX + eyeSize, eyeY + eyeSize, eyePaint)
     }
 
     @SuppressLint("ClickableViewAccessibility")

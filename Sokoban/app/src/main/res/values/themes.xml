@@ -7,6 +7,7 @@
         <item name="colorSecondary">#FFFFA500</item>
         <item name="colorSecondaryVariant">#FFCC8400</item>
         <item name="colorOnSecondary">#FF000000</item>
-        <item name="android:statusBarColor">#FF1E1E1E</item>
+        <item name="android:statusBarColor">#FFF5F0EB</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

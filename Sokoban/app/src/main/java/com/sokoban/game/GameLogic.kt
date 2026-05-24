@@ -1,5 +1,7 @@
 package com.sokoban.game
 
+import android.util.Log
+
 /**
  * 推箱子游戏核心逻辑
  */
@@ -20,15 +22,21 @@ enum class Direction {
 }
 
 data class MoveRecord(
-    val playerRow: Int,
-    val playerCol: Int,
-    val boxRow: Int = -1,
-    val boxCol: Int = -1,
+    val playerPrevRow: Int,
+    val playerPrevCol: Int,
+    val playerWasOnTarget: Boolean,
+    val boxPrevRow: Int = -1,
+    val boxPrevCol: Int = -1,
     val boxWasOnTarget: Boolean = false,
-    val playerWasOnTarget: Boolean = false
+    val boxDestWasTarget: Boolean = false,
+    val pushDirection: Direction? = null
 )
 
 class GameLogic {
+
+    companion object {
+        private const val TAG = "SokobanGame"
+    }
 
     var rows: Int = 0
         private set
@@ -46,13 +54,16 @@ class GameLogic {
     private lateinit var grid: Array<IntArray>
     private val moveHistory = mutableListOf<MoveRecord>()
 
-    // 存储原始目标点位置
+    // 存储原始目标点位置（从初始地图扫描，不随游戏变化）
     private val targetPositions = mutableListOf<Pair<Int, Int>>()
 
     fun loadLevel(level: Level) {
         rows = level.map.size
         cols = level.map[0].size
-        grid = Array(rows) { row -> IntArray(cols) { col -> level.map[row][col] } }
+
+        // 深拷贝地图数据
+        grid = Array(rows) { r -> IntArray(cols) { c -> level.map[r][c] } }
+
         playerRow = level.playerStartRow
         playerCol = level.playerStartCol
         moves = 0
@@ -60,15 +71,35 @@ class GameLogic {
         moveHistory.clear()
         targetPositions.clear()
 
-        // 记录所有目标点位置
+        // 从原始地图数据扫描目标点（value == 3 是 TARGET）
         for (r in 0 until rows) {
             for (c in 0 until cols) {
-                if (grid[r][c] == CellType.TARGET.ordinal ||
-                    grid[r][c] == CellType.BOX_ON_TARGET.ordinal ||
-                    grid[r][c] == CellType.PLAYER_ON_TARGET.ordinal) {
+                val v = level.map[r][c]
+                if (v == CellType.TARGET.ordinal ||
+                    v == CellType.BOX_ON_TARGET.ordinal ||
+                    v == CellType.PLAYER_ON_TARGET.ordinal) {
                     targetPositions.add(Pair(r, c))
                 }
             }
+        }
+
+        // 统计箱子数量
+        var boxCount = 0
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val v = grid[r][c]
+                if (v == CellType.BOX.ordinal || v == CellType.BOX_ON_TARGET.ordinal) {
+                    boxCount++
+                }
+            }
+        }
+
+        Log.d(TAG, "关卡加载: ${rows}x${cols}, 箱子=$boxCount, 目标=${targetPositions.size}")
+        if (boxCount != targetPositions.size) {
+            Log.e(TAG, "错误: 箱子数($boxCount) != 目标数(${targetPositions.size})!")
+        }
+        if (targetPositions.isEmpty()) {
+            Log.e(TAG, "错误: 没有目标点，任何移动都会通关！")
         }
     }
 
@@ -93,18 +124,22 @@ class GameLogic {
         val newRow = playerRow + dr
         val newCol = playerCol + dc
 
-        // 检查边界
         if (newRow < 0 || newRow >= rows || newCol < 0 || newCol >= cols) return false
 
         val targetCell = grid[newRow][newCol]
 
-        // 墙壁，不能移动
+        // 墙壁或空地，不能移动
         if (targetCell == CellType.WALL.ordinal || targetCell == CellType.EMPTY.ordinal) return false
 
-        // 空地或目标点，直接移动
+        // 地板或目标点，直接移动
         if (targetCell == CellType.FLOOR.ordinal || targetCell == CellType.TARGET.ordinal) {
-            recordMove(newRow, newCol)
-            updatePlayerPosition(newRow, newCol, isTarget(newRow, newCol))
+            val record = MoveRecord(
+                playerPrevRow = playerRow,
+                playerPrevCol = playerCol,
+                playerWasOnTarget = isTarget(playerRow, playerCol)
+            )
+            moveHistory.add(record)
+            updatePlayerPosition(newRow, newCol)
             moves++
             return true
         }
@@ -114,26 +149,34 @@ class GameLogic {
             val boxNewRow = newRow + dr
             val boxNewCol = newCol + dc
 
-            // 检查箱子目标位置边界
             if (boxNewRow < 0 || boxNewRow >= rows || boxNewCol < 0 || boxNewCol >= cols) return false
 
             val boxTargetCell = grid[boxNewRow][boxNewCol]
 
-            // 箱子目标位置必须是地板或目标点
             if (boxTargetCell == CellType.FLOOR.ordinal || boxTargetCell == CellType.TARGET.ordinal) {
-                val boxWasOnTarget = targetCell == CellType.BOX_ON_TARGET.ordinal
-                recordMove(newRow, newCol, newRow, newCol, boxWasOnTarget, isTarget(playerRow, playerCol))
+                val record = MoveRecord(
+                    playerPrevRow = playerRow,
+                    playerPrevCol = playerCol,
+                    playerWasOnTarget = isTarget(playerRow, playerCol),
+                    boxPrevRow = newRow,
+                    boxPrevCol = newCol,
+                    boxWasOnTarget = (targetCell == CellType.BOX_ON_TARGET.ordinal),
+                    boxDestWasTarget = (boxTargetCell == CellType.TARGET.ordinal),
+                    pushDirection = direction
+                )
+                moveHistory.add(record)
 
-                // 移动箱子
-                grid[newRow][newCol] = if (boxWasOnTarget) CellType.TARGET.ordinal else CellType.FLOOR.ordinal
+                // 移动箱子：旧位置恢复为地板或目标点
+                grid[newRow][newCol] = if (isTarget(newRow, newCol))
+                    CellType.TARGET.ordinal else CellType.FLOOR.ordinal
+                // 新位置设置箱子
                 grid[boxNewRow][boxNewCol] = if (isTarget(boxNewRow, boxNewCol))
                     CellType.BOX_ON_TARGET.ordinal else CellType.BOX.ordinal
 
                 // 移动玩家
-                updatePlayerPosition(newRow, newCol, isTarget(newRow, newCol))
+                updatePlayerPosition(newRow, newCol)
                 moves++
 
-                // 检查是否完成
                 checkCompletion()
                 return true
             }
@@ -147,80 +190,68 @@ class GameLogic {
 
         val record = moveHistory.removeAt(moveHistory.size - 1)
 
-        // 恢复玩家位置
-        val wasOnTarget = record.playerWasOnTarget
-        grid[playerRow][playerCol] = if (isTarget(playerRow, playerCol))
-            CellType.TARGET.ordinal else CellType.FLOOR.ordinal
-
-        playerRow = record.playerRow
-        playerCol = record.playerCol
-        grid[playerRow][playerCol] = if (wasOnTarget)
-            CellType.PLAYER_ON_TARGET.ordinal else CellType.PLAYER.ordinal
-
-        // 恢复箱子位置（如果有）
-        if (record.boxRow >= 0) {
-            // 先清除箱子当前位置
-            val currentBoxRow = record.boxRow + (record.boxRow - record.playerRow)
-            val currentBoxCol = record.boxCol + (record.boxCol - record.playerCol)
-
-            // 计算箱子移动前的位置
-            val oldBoxRow = record.boxRow
-            val oldBoxCol = record.boxCol
-
-            // 箱子当前位置 = 推动后的位置
-            val (dr, dc) = when {
-                record.boxRow < record.playerRow -> Pair(-1, 0)
-                record.boxRow > record.playerRow -> Pair(1, 0)
-                record.boxCol < record.playerCol -> Pair(0, -1)
-                else -> Pair(0, 1)
+        // 1. 恢复箱子（如果有推箱操作）
+        if (record.boxPrevRow >= 0 && record.pushDirection != null) {
+            val (dr, dc) = when (record.pushDirection) {
+                Direction.UP -> Pair(-1, 0)
+                Direction.DOWN -> Pair(1, 0)
+                Direction.LEFT -> Pair(0, -1)
+                Direction.RIGHT -> Pair(0, 1)
             }
 
-            val pushedBoxRow = record.boxRow + dr
-            val pushedBoxCol = record.boxCol + dc
+            // 箱子推动后的位置
+            val boxPushedRow = record.boxPrevRow + dr
+            val boxPushedCol = record.boxPrevCol + dc
 
-            // 清除推动后的位置
-            grid[pushedBoxRow][pushedBoxCol] = if (isTarget(pushedBoxRow, pushedBoxCol))
+            // 清除箱子当前位置（恢复为箱子推来之前的地面状态）
+            grid[boxPushedRow][boxPushedCol] = if (record.boxDestWasTarget)
                 CellType.TARGET.ordinal else CellType.FLOOR.ordinal
 
             // 恢复箱子到原位置
-            grid[oldBoxRow][oldBoxCol] = if (record.boxWasOnTarget)
+            grid[record.boxPrevRow][record.boxPrevCol] = if (record.boxWasOnTarget)
                 CellType.BOX_ON_TARGET.ordinal else CellType.BOX.ordinal
         }
 
-        moves--
+        // 2. 清除玩家当前位置
+        grid[playerRow][playerCol] = if (isTarget(playerRow, playerCol))
+            CellType.TARGET.ordinal else CellType.FLOOR.ordinal
+
+        // 3. 恢复玩家到原位置
+        playerRow = record.playerPrevRow
+        playerCol = record.playerPrevCol
+        grid[playerRow][playerCol] = if (record.playerWasOnTarget)
+            CellType.PLAYER_ON_TARGET.ordinal else CellType.PLAYER.ordinal
+
+        moves = (moves - 1).coerceAtLeast(0)
         isCompleted = false
+
+        Log.d(TAG, "撤销: 玩家→($playerRow,$playerCol), 步数=$moves")
         return true
     }
 
-    private fun recordMove(
-        playerRow: Int,
-        playerCol: Int,
-        boxRow: Int = -1,
-        boxCol: Int = -1,
-        boxWasOnTarget: Boolean = false,
-        playerWasOnTarget: Boolean = false
-    ) {
-        moveHistory.add(MoveRecord(playerRow, playerCol, boxRow, boxCol, boxWasOnTarget, playerWasOnTarget))
-    }
-
-    private fun updatePlayerPosition(newRow: Int, newCol: Int, onTarget: Boolean) {
+    private fun updatePlayerPosition(newRow: Int, newCol: Int) {
         // 清除旧位置
         grid[playerRow][playerCol] = if (isTarget(playerRow, playerCol))
             CellType.TARGET.ordinal else CellType.FLOOR.ordinal
 
         playerRow = newRow
         playerCol = newCol
-        grid[playerRow][playerCol] = if (onTarget)
+        grid[playerRow][playerCol] = if (isTarget(newRow, newCol))
             CellType.PLAYER_ON_TARGET.ordinal else CellType.PLAYER.ordinal
     }
 
     private fun checkCompletion() {
-        // 检查所有目标点是否都有箱子
+        if (targetPositions.isEmpty()) {
+            // 没有目标点，不应该通关
+            Log.w(TAG, "警告: 没有目标点，跳过通关检查")
+            return
+        }
         for ((r, c) in targetPositions) {
             if (grid[r][c] != CellType.BOX_ON_TARGET.ordinal) {
                 return
             }
         }
+        Log.d(TAG, "通关! 所有 ${targetPositions.size} 个目标点都有箱子")
         isCompleted = true
     }
 }
